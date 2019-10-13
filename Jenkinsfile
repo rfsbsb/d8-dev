@@ -1,9 +1,8 @@
 pipeline {
   agent {
-    dockerfile {
-      filename 'Dockerfile'
+    docker {
+      image 'php'
     }
-
   }
   stages {
     stage('New build') {
