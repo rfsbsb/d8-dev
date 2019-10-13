@@ -26,11 +26,8 @@ RUN set -eux; \
     openssh-client \
     patch \
     subversion \
-    tini \
     unzip \
     zip \
-    libzip-dev \
-    zlib-dev \
 	; \
 	\
 	docker-php-ext-configure gd \
