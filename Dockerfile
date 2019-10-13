@@ -1,91 +1,68 @@
-# from https://www.drupal.org/docs/8/system-requirements/drupal-8-php-requirements
-FROM php:7.3-apache-stretch
-# TODO switch to buster once https://github.com/docker-library/php/issues/865 is resolved in a clean way (either in the PHP image or in PHP itself)
+FROM ubuntu:bionic
 
-# install the PHP extensions we need
-RUN set -eux; \
-	\
-	if command -v a2enmod; then \
-		a2enmod rewrite; \
-	fi; \
-	\
-	savedAptMark="$(apt-mark showmanual)"; \
-	\
-	apt-get update; \
-	apt-get install -y --no-install-recommends \
-		libfreetype6-dev \
-		libjpeg-dev \
-		libpng-dev \
-		libpq-dev \
-		libzip-dev \
-    git \
-    make \
-    openssh-client \
-    patch \
-    unzip \
-    zip \
-	; \
-	\
-	docker-php-ext-configure gd \
-		--with-freetype-dir=/usr \
-		--with-jpeg-dir=/usr \
-		--with-png-dir=/usr \
-	; \
-	\
-	docker-php-ext-install -j "$(nproc)" \
-		gd \
-		opcache \
-		pdo_mysql \
-		pdo_pgsql \
-		zip \
-	; \
-	\
-# reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
-	apt-mark auto '.*' > /dev/null; \
-	apt-mark manual $savedAptMark; \
-	ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
-		| awk '/=>/ { print $3 }' \
-		| sort -u \
-		| xargs -r dpkg-query -S \
-		| cut -d: -f1 \
-		| sort -u \
-		| xargs -rt apt-mark manual; \
-	\
-	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
-	rm -rf /var/lib/apt/lists/*
+# set environment variables
+ENV PROJECT_ROOT /srv/app
+ENV DOCUMENT_ROOT /var/www/html
+ENV DRUPAL_PROFILE=apa_profile
 
-# set recommended PHP.ini settings
-# see https://secure.php.net/manual/en/opcache.installation.php
-RUN { \
-		echo 'opcache.memory_consumption=128'; \
-		echo 'opcache.interned_strings_buffer=8'; \
-		echo 'opcache.max_accelerated_files=4000'; \
-		echo 'opcache.revalidate_freq=60'; \
-		echo 'opcache.fast_shutdown=1'; \
-	} > /usr/local/etc/php/conf.d/opcache-recommended.ini
+# Install packages.
+RUN apt-get update
+RUN apt-get install -y \
+	vim \
+	git \
+	apache2 \
+	php-apc \
+	php7.2-fpm \
+	php7.2-cli \
+	php7.2-mysql \
+	php7.2-gd \
+	php7.2-curl \
+	libapache2-mod-php7.2 \
+	curl \
+	mysql-client \
+	openssh-server \
+	wget \
+	unzip \
+	supervisor
+RUN apt-get clean
 
-RUN printf "# composer php cli ini settings\n\
-date.timezone=UTC\n\
-memory_limit=-1\n\
-" > $PHP_INI_DIR/php-cli.ini
+# Install Composer.
+RUN curl -sS https://getcomposer.org/installer | php
+RUN mv composer.phar /usr/local/bin/composer
 
-ENV COMPOSER_ALLOW_SUPERUSER 1
-ENV COMPOSER_HOME /tmp
-ENV COMPOSER_VERSION 1.9.0
+# Setup SSH.
+# RUN mkdir /root/.ssh && chmod 700 /root/.ssh && touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
+# RUN echo 'root:root' | chpasswd
+# RUN sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+# RUN mkdir /var/run/sshd && chmod 0755 /var/run/sshd
+# RUN mkdir -p /root/.ssh
+# COPY keys/id_rsa.pub /root/.ssh/authorized_keys
+# RUN chmod 600 /root/.ssh/authorized_keys
+# RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
 
-RUN set -eux; \
-  curl --silent --fail --location --retry 3 --output /tmp/installer.php --url https://raw.githubusercontent.com/composer/getcomposer.org/cb19f2aa3aeaa2006c0cd69a7ef011eb31463067/web/installer; \
-  php -r " \
-    \$signature = '48e3236262b34d30969dca3c37281b3b4bbe3221bda826ac6a9a62d6444cdb0dcd0615698a5cbe587c3f0fe57a54d8f5'; \
-    \$hash = hash('sha384', file_get_contents('/tmp/installer.php')); \
-    if (!hash_equals(\$signature, \$hash)) { \
-      unlink('/tmp/installer.php'); \
-      echo 'Integrity check failed, installer is either corrupt or worse.' . PHP_EOL; \
-      exit(1); \
-    }"; \
-  php /tmp/installer.php --no-ansi --install-dir=/usr/bin --filename=composer --version=${COMPOSER_VERSION}; \
-  composer --ansi --version --no-interaction; \
-  rm -f /tmp/installer.php;
-  
-  WORKDIR /var/www/html
+# Install Drush
+RUN composer global require drush/drush:8.0.0-rc3
+RUN ln -nsf /root/.composer/vendor/bin/drush /usr/local/bin/drush
 
+# Move Composer cache, is put back in install.sh
+RUN mv /root/.composer /tmp/
+
+# Setup PHP.
+RUN sed -i 's/display_errors = Off/display_errors = On/' /etc/php/apache2/php.ini
+RUN sed -i 's/display_errors = Off/display_errors = On/' /etc/php/cli/php.ini
+
+# Setup Apache.
+RUN sed -i 's/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
+RUN a2enmod rewrite
+
+# Setup Supervisor.
+RUN echo '[program:apache2]\ncommand=/bin/bash -c "source /etc/apache2/envvars && exec /usr/sbin/apache2 -DFOREGROUND"\nautorestart=true\n\n' >> /etc/supervisor/supervisord.conf
+RUN echo '[program:sshd]\ncommand=/usr/sbin/sshd -D\n\n' >> /etc/supervisor/supervisord.conf
+
+# Configure X Debug
+# RUN apt-get install -y php5-xdebug
+# RUN echo "\nxdebug.max_nesting_level=256\nxdebug.default_enable=1\nxdebug.remote_enable=1\nxdebug.remote_handler=dbgp\nxdebug.remote_host=192.168.100.1\nxdebug.remote_port=9000\nxdebug.remote_autostart=0" >> /etc/php5/apache2/conf.d/20-xdebug.ini
+
+WORKDIR $PROJECT_ROOT
+EXPOSE 80 22
+CMD exec supervisord -n
