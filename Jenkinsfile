@@ -6,12 +6,9 @@ pipeline {
 
   }
   stages {
-    stage('build') {
-      agent any
+    stage('New build') {
       steps {
-        echo 'New image'
-        sh 'php --version'
-        sh 'composer install'
+        sh 'php -v'
       }
     }
   }
