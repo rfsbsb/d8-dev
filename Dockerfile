@@ -1,5 +1,5 @@
 # from https://www.drupal.org/docs/8/system-requirements/drupal-8-php-requirements
-FROM php:7.3-fpm-stretch
+FROM php:7.3-apache-stretch
 # TODO switch to buster once https://github.com/docker-library/php/issues/865 is resolved in a clean way (either in the PHP image or in PHP itself)
 
 # install the PHP extensions we need
@@ -18,16 +18,11 @@ RUN set -eux; \
 		libpng-dev \
 		libpq-dev \
 		libzip-dev \
-    bash \
-    coreutils \
     git \
     make \
-    mercurial \
     openssh-client \
     patch \
-    subversion \
     unzip \
-    inetutils-ping \
     zip \
 	; \
 	\
@@ -69,8 +64,6 @@ RUN { \
 		echo 'opcache.fast_shutdown=1'; \
 	} > /usr/local/etc/php/conf.d/opcache-recommended.ini
 
-WORKDIR /var/www/html
-
 RUN printf "# composer php cli ini settings\n\
 date.timezone=UTC\n\
 memory_limit=-1\n\
@@ -92,5 +85,7 @@ RUN set -eux; \
     }"; \
   php /tmp/installer.php --no-ansi --install-dir=/usr/bin --filename=composer --version=${COMPOSER_VERSION}; \
   composer --ansi --version --no-interaction; \
-  rm -f /tmp/installer.php; \
-  find /tmp -type d -exec chmod -v 1777 {} +
+  rm -f /tmp/installer.php;
+  
+  WORKDIR /var/www/html
+
