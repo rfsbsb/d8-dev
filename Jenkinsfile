@@ -1,7 +1,7 @@
 pipeline {
   agent {
-    docker {
-      image 'drupal'
+    dockerfile {
+      filename 'Dockerfile'
     }
 
   }
