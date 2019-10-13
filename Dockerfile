@@ -18,6 +18,19 @@ RUN set -eux; \
 		libpng-dev \
 		libpq-dev \
 		libzip-dev \
+    bash \
+    coreutils \
+    git \
+    make \
+    mercurial \
+    openssh-client \
+    patch \
+    subversion \
+    tini \
+    unzip \
+    zip \
+    libzip-dev \
+    zlib-dev \
 	; \
 	\
 	docker-php-ext-configure gd \
@@ -47,37 +60,6 @@ RUN set -eux; \
 	\
 	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
 	rm -rf /var/lib/apt/lists/*
-
-RUN set -eux; \
-  apk add --no-cache --virtual .composer-rundeps \
-    bash \
-    coreutils \
-    git \
-    make \
-    mercurial \
-    openssh-client \
-    patch \
-    subversion \
-    tini \
-    unzip \
-    zip
-
-RUN set -eux; \
-  apk add --no-cache --virtual .build-deps \
-    libzip-dev \
-    zlib-dev \
-  ; \
-  docker-php-ext-install -j "$(nproc)" \
-    zip \
-  ; \
-  runDeps="$( \
-    scanelf --needed --nobanner --format '%n#p' --recursive /usr/local/lib/php/extensions \
-      | tr ',' '\n' \
-      | sort -u \
-      | awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
-    )"; \
-  apk add --no-cache --virtual .composer-phpext-rundeps $runDeps; \
-  apk del .build-deps
 
 # set recommended PHP.ini settings
 # see https://secure.php.net/manual/en/opcache.installation.php
