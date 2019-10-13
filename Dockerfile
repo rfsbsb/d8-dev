@@ -27,6 +27,7 @@ RUN set -eux; \
     patch \
     subversion \
     unzip \
+    inetutils-ping \
     zip \
 	; \
 	\
