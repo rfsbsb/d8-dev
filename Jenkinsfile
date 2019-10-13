@@ -3,6 +3,7 @@ pipeline {
     docker {
       image 'php'
     }
+
   }
   stages {
     stage('New build') {
