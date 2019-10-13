@@ -9,7 +9,7 @@ pipeline {
     stage('build') {
       agent any
       steps {
-        echo 'Let\'s GO'
+        echo 'New image'
         sh 'php --version'
         sh 'composer install'
       }
