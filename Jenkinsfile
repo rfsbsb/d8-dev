@@ -1,7 +1,7 @@
 pipeline {
   agent {
     docker {
-      image 'php'
+      image 'linode/lamp'
     }
 
   }
